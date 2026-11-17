@@ -62,7 +62,7 @@ A damped trend baseline is worse than "no change" beyond 6 hours.
 The 90th-percentile model catches as many floods as the trend baseline with the same false alarms, and warns **3 hours earlier** on median. The 80th-percentile model trades a few missed floods for a third fewer false alarms. The full tables, including alert-level warnings and the Ditwah block, are in [`results/metrics.json`](results/metrics.json).
 
 ### What didn't help: rainfall
-Adding rainfall from the 25 Met Department stations left accuracy and warnings essentially unchanged (12 h error 26.4 vs 26.5 cm). Likely reasons:
+Adding rainfall from the 25 Met Department stations left accuracy and warnings essentially unchanged (12 h error 26.48 vs 26.51 cm). Rain reports are only used from the hour they are published, so there is no look-ahead. Likely reasons:
 - 25 gauges reporting every 3 hours are too coarse for local downpours;
 - upstream river stations and the country-wide rising signal already carry the same information earlier.
 

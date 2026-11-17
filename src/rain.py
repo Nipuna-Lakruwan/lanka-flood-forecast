@@ -39,8 +39,9 @@ def hourly_rain(reports: pd.DataFrame, index: pd.DatetimeIndex) -> pd.DataFrame:
     wide = reports.pivot_table(index="time", columns="wstation", values="rain_mm", aggfunc="max")
     per_hour = wide / 3.0
     spread = per_hour.reindex(index)
-    # The report at time t covers t-3h .. t, so fill backwards up to 2 hours.
-    return spread.bfill(limit=2)
+    # The report at time t covers t-3h .. t but is only known from t on, so carry it forwards (never backwards,
+    # which would leak rain into hours before it was reported).
+    return spread.ffill(limit=2)
 
 
 def _km(a, b) -> float:
