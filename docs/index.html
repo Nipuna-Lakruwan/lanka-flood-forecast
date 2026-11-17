@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lanka Flood Forecast · ගංවතුර අනාවැකි · வெள்ள முன்னறிவிப்பு</title>
+<meta name="description" content="River water level forecasts for 39 Sri Lankan stations, 6 to 24 hours ahead, with early flood warnings. Research prototype.">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root {
+    --bg: #f7f8fa; --surface: #fff; --ink: #14181f; --ink-2: #4b5260; --ink-3: #6b7280; --rule: #e3e6eb;
+    --normal: #2f9e6b; --alert: #d9a400; --minor: #e2711d; --major: #c92a2a; --accent: #2f6fd6;
+    --shadow: 0 1px 2px rgba(0,0,0,.05), 0 6px 20px rgba(0,0,0,.06);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #101318; --surface: #171b22; --ink: #e9ecf1; --ink-2: #b3bac6; --ink-3: #8d95a3; --rule: #2a303a;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.3); color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans Sinhala", "Noto Sans Tamil", system-ui, sans-serif; display: grid; grid-template-rows: auto 1fr; }
+  header { padding: 12px 16px; border-bottom: 1px solid var(--rule); background: var(--surface); display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: baseline; }
+  h1 { font-size: 18px; margin: 0; letter-spacing: -.01em; }
+  h1 small { font-weight: 500; color: var(--ink-3); font-size: 13px; margin-left: 6px; }
+  .meta { color: var(--ink-3); font-size: 13px; }
+  .warn-banner { margin-left: auto; font-weight: 600; font-size: 14px; }
+  main { display: grid; grid-template-columns: 360px 1fr; min-height: 0; }
+  aside { overflow-y: auto; border-right: 1px solid var(--rule); background: var(--surface); }
+  #map { min-height: 300px; }
+  .note { margin: 12px; padding: 10px 12px; border-radius: 10px; background: var(--bg); color: var(--ink-2); font-size: 13px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 12px 8px; font-size: 12.5px; color: var(--ink-2); }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { padding: 10px 14px; border-top: 1px solid var(--rule); cursor: pointer; }
+  li:hover, li.sel { background: var(--bg); }
+  .row1 { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
+  .row2 { color: var(--ink-3); font-size: 13px; display: flex; justify-content: space-between; gap: 8px; }
+  .badge { font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; color: #fff; white-space: nowrap; }
+  .pop h3 { margin: 0 0 2px; font-size: 15px; }
+  .pop .sub { color: #666; font-size: 12px; margin-bottom: 6px; }
+  .pop table { border-collapse: collapse; font-size: 12.5px; margin-top: 6px; }
+  .pop td { padding: 1px 8px 1px 0; }
+  .pop svg { display: block; }
+  footer { font-size: 12px; color: var(--ink-3); padding: 10px 14px 16px; }
+  footer a { color: var(--accent); }
+  @media (max-width: 760px) {
+    main { grid-template-columns: 1fr; grid-template-rows: 55vh auto; }
+    #map { order: -1; }
+    aside { border-right: 0; overflow: visible; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Lanka Flood Forecast <small>ගංවතුර අනාවැකි · வெள்ள முன்னறிவிப்பு</small></h1>
+  <span class="meta" id="meta">Loading…</span>
+  <span class="warn-banner" id="banner"></span>
+</header>
+<main>
+  <aside>
+    <p class="note">
+      River levels at 39 Irrigation Department stations, forecast <b>6, 12 and 24 hours ahead</b>.
+      A <b>warning</b> means the river could plausibly reach that level within 12 hours.
+      <b>Research prototype, not an official warning.</b> Always follow the
+      <a href="https://www.dmc.gov.lk" target="_blank" rel="noopener">Disaster Management Centre</a>.
+    </p>
+    <div class="legend">
+      <span><span class="dot" style="background:var(--normal)"></span>Normal</span>
+      <span><span class="dot" style="background:var(--alert)"></span>Alert level</span>
+      <span><span class="dot" style="background:var(--minor)"></span>Minor flood</span>
+      <span><span class="dot" style="background:var(--major)"></span>Major flood</span>
+      <span><span class="dot" style="background:transparent;border:2px dashed var(--major)"></span>Warning: may reach a level in 12 h</span>
+    </div>
+    <ul id="list"></ul>
+    <footer>
+      Data: Sri Lanka Irrigation Department, via <a href="https://github.com/nuuuwan/lk_irrigation" target="_blank" rel="noopener">nuuuwan/lk_irrigation</a> (MIT).
+      Model and evaluation: <a href="https://github.com/Nipuna-Lakruwan/lanka-flood-forecast" target="_blank" rel="noopener">lanka-flood-forecast</a>.
+    </footer>
+  </aside>
+  <div id="map" role="region" aria-label="Map of river stations"></div>
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const COLORS = { normal: "#2f9e6b", alert: "#d9a400", minor: "#e2711d", major: "#c92a2a" };
+const LABEL = { normal: "Normal", alert: "Alert level", minor: "Minor flood", major: "Major flood" };
+const RANK = { major: 4, minor: 3, alert: 2, normal: 1 };
+const fmtTime = (iso) => new Date(iso).toLocaleString("en-GB", { timeZone: "Asia/Colombo", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+
+function risk(s) { return Math.max(RANK[s.status], s.warning_12h ? RANK[s.warning_12h] + 0.5 : 0); }
+
+function sparkline(s) {
+  const W = 260, H = 90, P = 6;
+  const hist = s.history.filter(([, v]) => v !== null).map(([t, v]) => [Date.parse(t), v]);
+  const t0 = Date.parse(s.time);
+  const fc = [[t0, s.level_m], ...["6h", "12h", "24h"].map((k) => [t0 + parseInt(k) * 3600e3, s.forecast_m[k]])];
+  const all = [...hist, ...fc, [t0 + 12 * 3600e3, s.possible_high_12h_m]];
+  const thr = Object.values(s.thresholds_m).filter((v) => v !== null);
+  const ys = [...all.map((p) => p[1]), ...thr.filter((v) => v < Math.max(...all.map((p) => p[1])) * 1.6)];
+  const tmin = Math.min(...all.map((p) => p[0])), tmax = Math.max(...all.map((p) => p[0]));
+  const ymin = Math.min(...ys), ymax = Math.max(...ys) + 0.05;
+  const x = (t) => P + ((t - tmin) / (tmax - tmin || 1)) * (W - 2 * P);
+  const y = (v) => H - P - ((v - ymin) / (ymax - ymin || 1)) * (H - 2 * P);
+  const line = (pts) => pts.map((p, i) => (i ? "L" : "M") + x(p[0]).toFixed(1) + "," + y(p[1]).toFixed(1)).join("");
+  let g = "";
+  for (const [k, v] of Object.entries(s.thresholds_m)) {
+    if (v === null || v < ymin || v > ymax) continue;
+    g += `<line x1="${P}" x2="${W - P}" y1="${y(v)}" y2="${y(v)}" stroke="${COLORS[k]}" stroke-dasharray="3 3" stroke-width="1"/>`;
+  }
+  g += `<line x1="${x(t0)}" x2="${x(t0)}" y1="${P}" y2="${H - P}" stroke="#999" stroke-width="1"/>`;
+  g += `<path d="${line(hist)}" fill="none" stroke="#2f6fd6" stroke-width="2"/>`;
+  g += `<path d="${line(fc)}" fill="none" stroke="#2f6fd6" stroke-width="2" stroke-dasharray="4 3"/>`;
+  g += `<circle cx="${x(t0 + 12 * 3600e3)}" cy="${y(s.possible_high_12h_m)}" r="3.5" fill="none" stroke="#c92a2a" stroke-width="1.5"/>`;
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Last 72 hours and forecast">${g}</svg>`;
+}
+
+function popup(s) {
+  const th = s.thresholds_m;
+  const warn = s.warning_12h ? `<b style="color:${COLORS[s.warning_12h]}">⚠ May reach ${LABEL[s.warning_12h].toLowerCase()} within 12 h</b><br>` : "";
+  const stale = s.hours_since_reading > 6 ? `<br><b>Last reading ${s.hours_since_reading} h ago: forecast may be out of date.</b>` : "";
+  return `<div class="pop"><h3>${s.station}</h3><div class="sub">${s.river} · ${s.basin || ""}</div>${warn}
+    Now: <b>${s.level_m.toFixed(2)} m</b> (${LABEL[s.status]}) · ${fmtTime(s.time)}${stale}
+    ${sparkline(s)}
+    <div class="sub">Solid: last 72 h · dashed: forecast · red circle: possible high in 12 h</div>
+    <table><tr><td>In 6 h</td><td><b>${s.forecast_m["6h"].toFixed(2)} m</b></td><td>Alert</td><td>${th.alert ?? "–"} m</td></tr>
+    <tr><td>In 12 h</td><td><b>${s.forecast_m["12h"].toFixed(2)} m</b></td><td>Minor flood</td><td>${th.minor ?? "–"} m</td></tr>
+    <tr><td>In 24 h</td><td><b>${s.forecast_m["24h"].toFixed(2)} m</b></td><td>Major flood</td><td>${th.major ?? "–"} m</td></tr></table></div>`;
+}
+
+async function main() {
+  const res = await fetch("forecast.json", { cache: "no-store" });
+  const data = await res.json();
+  document.getElementById("meta").textContent =
+    `Latest reading ${fmtTime(data.latest_reading)} · updated ${fmtTime(data.generated_at)} (Sri Lanka time)`;
+  const warned = data.stations.filter((s) => s.warning_12h);
+  const flooded = data.stations.filter((s) => s.status === "minor" || s.status === "major");
+  const banner = document.getElementById("banner");
+  banner.textContent = warned.length || flooded.length
+    ? `⚠ ${flooded.length} in flood · ${warned.length} warned for the next 12 h`
+    : "✓ No stations in flood or warned right now";
+  banner.style.color = warned.length || flooded.length ? COLORS.minor : COLORS.normal;
+
+  const map = L.map("map", { scrollWheelZoom: true }).setView([7.85, 80.7], 8);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 13, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  }).addTo(map);
+
+  const markers = {};
+  for (const s of data.stations) {
+    const m = L.circleMarker([s.lat, s.lng], {
+      radius: 8 + (risk(s) > 1 ? 3 : 0), color: s.warning_12h ? COLORS[s.warning_12h] : "#fff",
+      weight: s.warning_12h ? 3 : 1.5, dashArray: s.warning_12h ? "4 3" : null,
+      fillColor: COLORS[s.status], fillOpacity: 0.9,
+    }).addTo(map).bindPopup(popup(s), { maxWidth: 300 });
+    markers[s.station] = m;
+  }
+
+  const list = document.getElementById("list");
+  for (const s of [...data.stations].sort((a, b) => risk(b) - risk(a) || a.station.localeCompare(b.station))) {
+    const li = document.createElement("li");
+    const badgeKey = s.warning_12h || s.status;
+    const badgeText = s.warning_12h ? `⚠ ${LABEL[s.warning_12h]} in 12 h` : LABEL[s.status];
+    const change = s.forecast_m["12h"] - s.level_m;
+    li.innerHTML = `<div class="row1"><span>${s.station}</span><span class="badge" style="background:${COLORS[badgeKey]}">${badgeText}</span></div>
+      <div class="row2"><span>${s.river}</span><span>${s.level_m.toFixed(2)} m → ${s.forecast_m["12h"].toFixed(2)} m in 12 h (${change >= 0 ? "+" : ""}${(change * 100).toFixed(0)} cm)</span></div>`;
+    li.onclick = () => { map.setView([s.lat, s.lng], 10); markers[s.station].openPopup(); };
+    list.appendChild(li);
+  }
+}
+main().catch((e) => { document.getElementById("meta").textContent = "Could not load forecasts: " + e.message; });
+</script>
+</body>
+</html>

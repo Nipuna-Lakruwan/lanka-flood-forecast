@@ -1,0 +1,28 @@
+name: Retrain models
+
+# Once a month, retrain on all river data collected so far, so the models learn from new floods.
+on:
+  schedule:
+    - cron: "41 2 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  retrain:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+      - run: uv sync --no-dev
+      - run: uv run python src/live.py train
+      - run: uv run python src/live.py forecast
+      - name: Commit the retrained models
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add models docs/forecast.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Retrain models $(date -u +%Y-%m-%d)"
+          git push

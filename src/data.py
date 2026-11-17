@@ -63,7 +63,19 @@ def hourly_levels(readings: pd.DataFrame) -> pd.DataFrame:
     full = pd.date_range(wide.index.min(), wide.index.max(), freq="h", tz="UTC")
     wide = wide.reindex(full)
     wide.index.name = "time"
+    wide = remove_spikes(wide)
     return wide.interpolate(limit=MAX_FILL_HOURS, limit_area="inside")
+
+
+def remove_spikes(wide: pd.DataFrame, jump_m: float = 1.0, agree_m: float = 0.3) -> pd.DataFrame:
+    """Drop one-hour glitches: a reading far from both neighbours while the neighbours agree with each other.
+
+    A real flood rises over hours and does not fall straight back, so it is not affected.
+    """
+    prev, nxt = wide.shift(1), wide.shift(-1)
+    spike = ((wide - prev).abs() > jump_m) & ((wide - nxt).abs() > jump_m) & ((prev - nxt).abs() < agree_m)
+    remove_spikes.last_count = int(spike.sum().sum())
+    return wide.mask(spike)
 
 
 def build(force_download: bool = False) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -80,5 +92,6 @@ if __name__ == "__main__":
     levels, stations = build()
     print(f"hourly table: {levels.shape[0]:,} hours x {levels.shape[1]} stations")
     print(f"{levels.index.min()} -> {levels.index.max()}")
+    print(f"one-hour glitches removed: {remove_spikes.last_count}")
     print(f"missing after short-gap fill: {levels.isna().mean().mean():.1%}")
     print(f"stations with flood thresholds: {stations.minor_flood_level_m.notna().sum()} of {len(stations)}")
