@@ -1,0 +1,26 @@
+[project]
+name = "lanka-flood-forecast"
+version = "0.1.0"
+description = "Forecast Sri Lankan river water levels 6-24 hours ahead and warn before flood levels, from open Irrigation Department data."
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.2",
+    "pyarrow>=16",
+    "numpy>=1.26",
+    "lightgbm>=4.3",
+    "matplotlib>=3.8",
+    "requests>=2.31",
+    "scikit-learn>=1.4",
+]
+
+[project.optional-dependencies]
+lstm = ["torch>=2.3"]
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[tool.ruff]
+line-length = 110
+
+[tool.uv]
+package = false
